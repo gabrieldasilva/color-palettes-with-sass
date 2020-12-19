@@ -1,0 +1,217 @@
+
+
+/// * Function defining the difference between 2 colors
+/// *
+/// * @param {Color} $a - first color
+/// * @param {Color} $b - second color
+/// *
+/// * @return {Map}
+@function color-diff($a, $b)
+{
+  $sat: saturation($a) - saturation($b);
+  $lig: lightness($a) - lightness($b);
+  $fn-sat: if($sat > 0, 'desaturate', 'saturate');
+  $fn-lig: if($lig > 0, 'darken', 'lighten');
+
+  @return (
+    adjust-hue: -(hue($a) - hue($b)),
+    #{$fn-sat}: abs($sat),
+    #{$fn-lig}: abs($lig)
+  );
+}
+
+
+/// * Compute the diff for each color from the initial palette
+/// *
+/// * @param {Map} $palette - palette
+/// * @requires {function} color diff
+/// * @return {List} list of diffs
+@function palette-diff($palette)
+{
+  $base: map-get($palette, 'base');
+  $colors: map-get($palette, 'colors');
+  $diffs: ();
+
+  @each $color in $colors
+  {
+    $diffs: append($diffs, color-diff($base, $color));
+  }
+
+  @return $diffs;
+}
+
+
+/// * Initial palette used to define the diff between the base color and each
+/// color from the palette.
+/// *
+/// * @type map
+$base-palette: (
+  'base': #ff6351,
+  'colors': #cfdfe8 #bfb9c3 #cf9192 #ff6351 #bf413c #7f3128 #732c24,
+) !default;
+
+/// * Palette diffs
+/// * Same length as colors key from map-palette
+/// *
+/// * @type List
+$palette-diff: palette-diff($base-palette);
+
+
+/// * Apply differences returned from 'color-diff' function to a color in order
+/// to retrieve the second color
+/// *
+/// * @param {Color} $color - color to transform
+/// * @param {Map} $diff - diff map
+/// * @type List
+@function apply-diff($color, $diff)
+{
+  @each $function, $value in $diff
+  {
+    $color: call(get_function($function), $color, $value);
+  }
+
+  @return $color;
+}
+
+/// * Create a palette from a base color
+/// *
+/// * @param {Color} $base-color - base color for the palette
+/// *
+/// * @requires {function} palette-diff
+/// * @requires {function} apply-diff
+/// * @requires {variable} $base-palette
+/// *
+/// * @return {List} list of generated colors
+@function create-palette($base-color)
+{
+  $palette: ();
+
+  @each $diff in $palette-diff
+  {
+    $palette: append($palette, apply-diff($base-color, $diff));
+  }
+
+  @return $palette;
+}
+
+/// * Create a list of colors from the base color
+/// * then turn it into a map with explicit keys
+/// *
+/// * @param {Color} $base-color - base color for the palette
+/// *
+/// * @requires {function} create-palette
+/// *
+/// * @return {Map}
+@function palette($base-color)
+{
+  $colors: create-palette($base-color);
+  $keys: 'lightest', 'lghter', 'light', 'base', 'dark', 'darker', 'darkest';
+  $palette: ();
+
+  @for $i from 1 through min(length($colors), length($keys))
+  {
+    $palette: map-merge($palette, ( nth($keys, $i): nth($colors, $i) ));
+  }
+
+  @return $palette;
+}
+
+/// * Returns the lightest color from the palette if exists
+/// *
+/// * @param {Map} $palette - the created palette
+/// *
+/// * @return {Color}
+@function lightest($palette)
+{
+  @if not map-has_key($palette, 'lightest')
+  {
+    @warn "`#{inspect($palette)}` doesnt seem to have a key named `lightest`";
+  }
+
+  @return map-get($palette, 'lightest');
+}
+
+/// * Returns the lighter color from the palette if exists
+/// *
+/// * @param {Map} $palette - the created palette
+/// *
+/// * @return {Color}
+@function lighter($palette)
+{
+  @if not map-has_key($palette, 'lighter')
+  {
+    @warn "`#{inspect($palette)}` doesnt seem to have a key named `lighter`";
+  }
+
+  @return map-get($palette, 'lighter');
+}
+
+/// * Returns the light color from the palette if exists
+/// *
+/// * @param {Map} $palette - the created palette
+/// *
+/// * @return {Color}
+@function light($palette)
+{
+  @if not map-has_key($palette, 'light')
+  {
+    @warn "`#{inspect($palette)}` doesnt seem to have a key named `light`";
+  }
+
+  @return map-get($palette, 'light');
+}
+
+/// * Creates and apply a palette
+/// *
+/// * @param {Color} $base-color - the base color
+/// *
+/// * @requires {function} create-palette
+@mixin draw-palette($base-color)
+{
+  $palette: create-palette($base-color);
+  $length: length($palette);
+  $color-stops: append((), nth($palette, 1), comma);
+  $stop-size: 100 / $length;
+
+  @for $i from 1 through $length
+  {
+    $color: nth($palette, $i);
+
+    @if ($i > 1)
+    {
+      $color-stops: append($color-stops, $color $stop-size * ($i - 1) * 1%);
+    }
+
+    $color-stops: append($color-stops, $color $stop-size * $i * 1%);
+  }
+
+  background: nth($palette, ceil($length / 2));
+  background: linear-gradient(to right, $color-stops);
+}
+
+//$green-palette: palette(lightgreen);
+
+//@debug(map_get($green-palette, 'light'));
+.container
+{
+  position: relative;
+  width: 100%;
+  max-width: 980px;
+  height: auto;
+  margin: 0 auto;
+  padding: 2rem 0;
+}
+
+// Draw palettes
+.test-1 { @include draw-palette(red) }
+.test-2 { @include draw-palette(tomato) }
+.test-3 { @include draw-palette(deepskyblue) }
+.test-4 { @include draw-palette(gold) }
+.test-5 { @include draw-palette(magenta) }
+.test-6 { @include draw-palette(silver) }
+
+.test
+{
+  margin: 1em 0;
+  height: 6em;
+}
